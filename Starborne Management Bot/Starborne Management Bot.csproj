@@ -6,4 +6,9 @@
     <RootNamespace>Starborne_Management_Bot</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="2.1.1" />
+    <PackageReference Include="unirest-netcore20" Version="1.0.1" />
+  </ItemGroup>
+
 </Project>
