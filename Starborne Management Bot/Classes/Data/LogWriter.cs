@@ -13,7 +13,10 @@ namespace Starborne_Management_Bot.Classes.Data
 
         public static async Task WriteLogFile(string logMsg)
         {
-            string fileLoc = $"{LogFileLoc}{DateTime.Now.Date.Day}-{DateTime.Now.Date.Month}-{DateTime.Now.Date.Year} .txt";
+            string date = (DateTime.Now.Day.ToString().Length == 2 ? DateTime.Now.Day.ToString() : $"0{DateTime.Now.Day.ToString()}") + "-";
+            date += (DateTime.Now.Month.ToString().Length == 2 ? DateTime.Now.Month.ToString() : $"0{DateTime.Now.Month.ToString()}") + "-";
+            date += DateTime.Now.Year.ToString();
+            string fileLoc = $"{LogFileLoc}-{date}.txt";
             if (!File.Exists(fileLoc))
             {
                 File.WriteAllText(fileLoc, $"Logfile for {DateTime.Now.Date}{Environment.NewLine}");
