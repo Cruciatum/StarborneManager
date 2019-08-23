@@ -33,12 +33,13 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Open();
 
                 #region Get all NAPs
-                DB2Command cmd = new DB2Command($"SELECT NapID, NAPGuildName, NAPGuildTag FROM NAPs WHERE GuildID = {Context.Guild.Id};", conn);
+                DB2Command cmd = new DB2Command($"SELECT NAPGuildName, NAPGuildTag, UserID, DateStamp FROM NAPs WHERE GuildID = {Context.Guild.Id};", conn);
                 DB2DataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
-                    eb.AddField($"NAP ID: {dr.GetValue(0)}", $"{dr.GetValue(1)} {((string)dr.GetValue(2) != "" ? $"({dr.GetValue(2)})" : "")}");
+                    var madeBy = Context.Guild.GetUser(Convert.ToUInt64(dr.GetValue(2)));
+                    eb.AddField($"{Convert.ToString(dr.GetValue(0))} {(Convert.ToString(dr.GetValue(1)) != "" ? $"({Convert.ToString(dr.GetValue(1))})" : "")}", $"Created by {(string.IsNullOrEmpty(madeBy.Nickname) ? madeBy.ToString() : $"{madeBy.Nickname} ({madeBy.ToString()})")}\n*Created on {Convert.ToString(dr.GetValue(3))}*");
                 }
                 dr.Close();
                 #endregion
@@ -101,7 +102,7 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Close();
                 conn.Dispose();
             }
-            var sql = $"INSERT INTO NAPs (GuildID, NAPGuildName, NAPGuildTag) VALUES ({Context.Guild.Id}, '{allianceName}', '{allianceTag}');";
+            var sql = $"INSERT INTO NAPs (GuildID, NAPGuildName, NAPGuildTag, UserID, DateStamp) VALUES ({Context.Guild.Id}, '{allianceName}', '{allianceTag}', {Context.User.Id} , '{DateTime.Now.Day}-{DateTime.Now.Month}-{DateTime.Now.Year}');";
             DBControl.UpdateDB(sql);
 
             await Context.Channel.SendMessageAsync($"{Context.User.Mention}, {allianceName}{(allianceTag == "" ? "" : $"({allianceTag})")} has been added to the active NAP list.");

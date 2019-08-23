@@ -38,12 +38,18 @@ namespace Starborne_Management_Bot.Classes.Commands
 
                 if (dr.HasRows)
                 {
+                    List<object> oList = new List<object>();
                     while (dr.Read())
                     {
                         //User already has a reserved station
                         var val1 = dr.GetValue(0);
                         var val2 = dr.GetValue(1);
-                        await Context.Channel.SendMessageAsync($"{Context.User.Mention}, you already have a reservation at [{val1.ToString()} {val2.ToString()}]");
+                        oList.Add(new { val1, val2 });
+                        
+                    }
+                    if (oList.Count >= GlobalVars.GuildOptions.Single(go=>go.GuildID == Context.Guild.Id).MaxReserves)
+                    {
+                        await Context.Channel.SendMessageAsync($"{Context.User.Mention}, you already have the maximum amount of reserved locations. Check them with `{Context.Message.Content.Substring(0,1)}reserve list`");
                         return;
                     }
                 }
@@ -79,10 +85,10 @@ namespace Starborne_Management_Bot.Classes.Commands
         }
 
         [Command("reserve list")]
-        public async Task ListReserves([Remainder]string arg)
+        public async Task ListReserves(IGuildUser user = null)
         {
-            var user = Context.Message.MentionedUsers.FirstOrDefault();
-            var target = (user != null) ? user : Context.User;
+            user = (IGuildUser)Context.Message.MentionedUsers.FirstOrDefault();
+            var target = (user != null) ? (SocketUser)user : Context.User;
 
             DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
             sBuilder.Database = GlobalVars.dbSettings.db;

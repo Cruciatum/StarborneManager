@@ -20,8 +20,10 @@ namespace Starborne_Management_Bot.Classes.Commands
 
             #region Add Commands to EmbedBuilder
             eb.AddField($"{prefix}reserve [coord1] [coord2]", $"Reserve a station.");
+            eb.AddField($"{prefix}reserve list <@User>", $"List all reserved locations by yourself or by [@User]");
             eb.AddField($"{prefix}reserve check <coord1> <coord2>", $"Check which stations have been reserved by members of your alliance\nOptional parameters: coordinates.");
             eb.AddField($"{prefix}reserve remove [coord1] [coord2]", $"Reserve a location you have reserved in the past.");
+            eb.AddField($"{prefix}reserve max [amount]", $"Set a maximum on howmany locations each user can reserve.\n*(Administrator permissions required)*");
             eb.AddField($"{prefix}nap list", $"View all active Non-Aggression Pacts for your Alliance.");
             eb.AddField($"{prefix}nap add [AllianceName] <AllianceTag>", $"Add a new active Non-Aggression Pact.");
             eb.AddField($"{prefix}nap remove [AllianceName]", $"Remove an inactive Non-Aggression Pact.");

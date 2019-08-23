@@ -254,25 +254,7 @@ namespace Starborne_Management_Bot
 
         private async Task UpdateActivity()
         {
-            string activity = "";
-            using (var s = new FileStream((Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)).Replace(@"bin\Debug\netcoreapp2.2", @"Data\Activity.txt"), FileMode.Open, FileAccess.Read))
-            {
-                using (var r = new StreamReader(s))
-                {
-                    activity = r.ReadToEnd();
-                }
-            }
-            string version = "";
-            using (var s = new FileStream((Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)).Replace(@"bin\Debug\netcoreapp2.2", @"Data\Version.txt"), FileMode.Open, FileAccess.Read))
-            {
-                using (var r = new StreamReader(s))
-                {
-                    version = r.ReadToEnd();
-                }
-            }
-
-            activity = activity.Replace("{serverCount}", Client.Guilds.Count.ToString());
-            await Client.SetGameAsync($"{activity} {version}");
+            await Client.SetGameAsync($"{GlobalVars.bSettings.activity.Replace("{count}", Client.Guilds.Count.ToString())} {GlobalVars.bSettings.version}");
         }
 
         private void GetSQLData()
