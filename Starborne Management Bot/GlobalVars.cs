@@ -17,9 +17,10 @@ namespace Starborne_Management_Bot
     internal static class GlobalVars
     {
         internal static DiscordSocketClient Client { get; set; }
+        internal static DBSettings dbSettings { get; set; }
+        internal static BotSettings bSettings { get; set; }
 
-        internal readonly static string GuildsFileLoc = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location).Replace(@"bin\Debug\netcoreapp2.2", @"Data\Guilds.xml");
-        internal static XmlDocument GuildsFile { get; set; } = new XmlDocument();
+        internal static List<GuildOption> GuildOptions { get; set; } = new List<GuildOption>();
 
         internal static List<TimeoutTracker> UserTimeouts { get; set; } = new List<TimeoutTracker>(); //Keep track of user timeouts after command usage
         internal static List<TimeoutTimer> UserTimeoutTimers { get; set; } = new List<TimeoutTimer>(); //Keep track of timers so proper one can be found

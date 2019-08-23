@@ -17,6 +17,9 @@ using System.Net.Http;
 using Starborne_Management_Bot.Classes.Data;
 using Starborne_Management_Bot.Classes.HelperObjects;
 
+using IBM.Data.DB2.Core;
+using Dropbox.Api;
+
 namespace Starborne_Management_Bot
 {
     class Program
@@ -30,6 +33,51 @@ namespace Starborne_Management_Bot
 
         private async Task MainAsync()
         {
+            using (var dbClient = new DropboxClient(Constants._DBTOKEN_))
+            {
+                if (File.Exists(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\BotSettings.json")))
+                {
+                    GlobalVars.bSettings = new BotSettings(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\BotSettings.json"));
+                }
+                else
+                {
+                    if (!Directory.Exists(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data")))
+                    {
+                        Directory.CreateDirectory(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data"));
+                    }
+                    using (var response = await dbClient.Files.DownloadAsync("/Data/BotSettings.json"))
+                    {
+                        var f = File.Create(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\BotSettings.json"));
+                        using (var rw = new StreamWriter(f))
+                        {
+                            rw.Write(await response.GetContentAsStringAsync());
+                        }
+                    }
+                    GlobalVars.bSettings = new BotSettings(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\BotSettings.json"));
+                }
+
+                if (File.Exists(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\DBSettings.json")))
+                {
+                    GlobalVars.dbSettings = new DBSettings(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\DBSettings.json"));
+                }
+                else
+                {
+                    if (!Directory.Exists(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data")))
+                    {
+                        Directory.CreateDirectory(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data"));
+                    }
+                    using (var response = await dbClient.Files.DownloadAsync("/Data/DBSettings.json"))
+                    {
+                        var f = File.Create(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\DBSettings.json"));
+                        using (var rw = new StreamWriter(f))
+                        {
+                            rw.Write(await response.GetContentAsStringAsync());
+                        }
+                    }
+                    GlobalVars.dbSettings = new DBSettings(Constants._WORKDIR_ + Constants.TranslateForOS(@"\Data\DBSettings.json"));
+                }
+            }
+
             Client = new DiscordSocketClient(new DiscordSocketConfig
             {
                 LogLevel = LogSeverity.Debug
@@ -54,30 +102,41 @@ namespace Starborne_Management_Bot
             Client.Log += Client_Log;
             Client.JoinedGuild += Client_JoinedGuild;
             Client.LeftGuild += Client_LeftGuild;
+            Client.UserJoined += Client_UserJoined;
+            Client.UserLeft += Client_UserLeft;
 
-            string Token = "";
-            using (var s = new FileStream((Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)).Replace(@"bin\Debug\netcoreapp2.2", @"Data\Token.txt"), FileMode.Open, FileAccess.Read))
+            if (!Directory.Exists(LogWriter.LogFileLoc.Replace(Constants.TranslateForOS(@"Logs\Log"), Constants.TranslateForOS(@"Logs\"))))
             {
-                using (var r = new StreamReader(s))
-                {
-                    Token = r.ReadToEnd();
-                }
+                Directory.CreateDirectory(LogWriter.LogFileLoc.Replace(Constants.TranslateForOS(@"Logs\Log"), Constants.TranslateForOS(@"Logs\")));
             }
-            if (!Directory.Exists(LogWriter.LogFileLoc.Replace(@"Logs\Log", @"Logs\"))) Directory.CreateDirectory(LogWriter.LogFileLoc.Replace(@"Logs\Log", @"Logs\"));
 
-            await Client.LoginAsync(TokenType.Bot, Token);
+            DBControl.dbSettings = GlobalVars.dbSettings;
+
+            GetSQLData();
+
+            await Client.LoginAsync(TokenType.Bot, GlobalVars.bSettings.token);
             await Client.StartAsync();
 
             await Task.Delay(-1);
         }
 
+        private Task Client_UserLeft(SocketGuildUser arg)
+        {
+            throw new NotImplementedException();
+        }
+
+        private async Task Client_UserJoined(SocketGuildUser arg)
+        {
+            string sql = $"DELETE FROM SBUsers WHERE UserID = {arg.Id};";
+
+            DBControl.UpdateDB(sql);
+        }
+
         private async Task CheckGuildsStartup()
         {
-            GlobalVars.GuildsFile.Load(GlobalVars.GuildsFileLoc);
-            var root = GlobalVars.GuildsFile.DocumentElement;
             foreach (SocketGuild g in Client.Guilds)
             {
-                if (GlobalVars.GuildsFile.SelectSingleNode($"/Guilds/Guild[@GuildID='{g.Id}']") == null)
+                if (GlobalVars.GuildOptions.Where(x => x.GuildID == g.Id).Count() <= 0)
                 {
                     await Client_JoinedGuild(g);
                 }
@@ -88,13 +147,9 @@ namespace Starborne_Management_Bot
         {
             Console.WriteLine($"{DateTime.Now} -> Left guild: {arg.Id}");
 
-            GlobalVars.GuildsFile.Load(GlobalVars.GuildsFileLoc);
-            var root = GlobalVars.GuildsFile.DocumentElement;
-            var guildNode = GlobalVars.GuildsFile.SelectSingleNode($"/Guilds/Guild[@GuildID='{arg.Id}']");
+            GlobalVars.GuildOptions.Remove(GlobalVars.GuildOptions.Single(x => x.GuildID == arg.Id));
 
-            root.RemoveChild(guildNode);
-
-            GlobalVars.GuildsFile.Save(GlobalVars.GuildsFileLoc);
+            DBControl.UpdateDB($"DELETE FROM SBGuilds WHERE GuildID = {arg.Id};");
 
             await UpdateActivity();
             await Task.Delay(100);
@@ -105,38 +160,19 @@ namespace Starborne_Management_Bot
         {
             Console.WriteLine($"{DateTime.Now} -> Joined guild: {arg.Id}");
 
-            GlobalVars.GuildsFile.Load(GlobalVars.GuildsFileLoc);
-            //add new guildobject to Guilds file
-            var root = GlobalVars.GuildsFile.DocumentElement;
+            GuildOption go = new GuildOption();
 
-            var guildNode = GlobalVars.GuildsFile.CreateElement("Guild");
-            var guildID = GlobalVars.GuildsFile.CreateAttribute("GuildID");
-            var prefixNode = GlobalVars.GuildsFile.CreateElement("Prefix");
-            var nameNode = GlobalVars.GuildsFile.CreateElement("GuildName");
-            var ownerID = GlobalVars.GuildsFile.CreateElement("OwnerID");
-            var optionsNode = GlobalVars.GuildsFile.CreateElement("Options");
-            var optionLogEmbed = optionsNode.AppendChild(GlobalVars.GuildsFile.CreateElement("LogEmbeds")).InnerText = "0";
-            var optionLogAttachments = optionsNode.AppendChild(GlobalVars.GuildsFile.CreateElement("LogAttachments")).InnerText = "0";
+            go.GuildID = arg.Id;
+            go.GuildName = arg.Name;
+            go.OwnerID = arg.Owner.Id;
+            go.Prefix = "]";
+            go.PunishThreshold = 0;
+            go.MaxReserves = 1;
+            GlobalVars.GuildOptions.Add(go);
 
-            var optionLogChannelID = optionsNode.AppendChild(GlobalVars.GuildsFile.CreateElement("LogChannelID")).InnerText = "0";
+            DBControl.UpdateDB($"INSERT INTO SBGuilds VALUES ({go.GuildID.ToString()}, '{go.GuildName.Replace(@"'", "_")}',{go.OwnerID.ToString()},'{go.Prefix}', {go.PunishThreshold}, {go.MaxReserves});");
 
-            guildID.Value = arg.Id.ToString();
-            guildNode.Attributes.Append(guildID);
-
-            nameNode.InnerText = arg.Name;
-            guildNode.AppendChild(nameNode);
-
-            ownerID.InnerText = arg.Owner.Id.ToString();
-            guildNode.AppendChild(ownerID);
-
-            prefixNode.InnerText = "]";
-            guildNode.AppendChild(prefixNode);
-
-            guildNode.AppendChild(optionsNode);
-
-            root.AppendChild(guildNode);
-
-            GlobalVars.GuildsFile.Save(GlobalVars.GuildsFileLoc);
+            GetUsers(arg);
 
             await UpdateActivity();
             await Task.Delay(100);
@@ -144,7 +180,7 @@ namespace Starborne_Management_Bot
 
         private async Task Client_Log(LogMessage arg)
         {
-            if (arg.Severity <= (GlobalVars.GuildsFileLoc.Contains("Live") ? LogSeverity.Info : LogSeverity.Debug))
+            if (arg.Severity <= LogSeverity.Info)
             {
                 if (arg.Exception != null)
                 {
@@ -168,21 +204,18 @@ namespace Starborne_Management_Bot
 
         private async Task Client_MessageReceived(SocketMessage arg)
         {
-            var guildOptions = new Options();
             var msg = arg as SocketUserMessage;
+            if (msg.Content.Length <= 1 && msg.Embeds.Count == 0 && msg.Attachments.Count == 0) return;
+
             var context = new SocketCommandContext(Client, msg);
-            if ((context.Message == null || context.Message.Content == "") && arg.Attachments.Count == 0 && arg.Embeds.Count == 0) return;
+            var guildOptions = GlobalVars.GuildOptions.Single(x => x.GuildID == context.Guild.Id);
+
+            if (context.Message == null && context.Message.Content == "") return;
             if (context.User.IsBot) return;
+
             int argPos = 0;
-            string guildPrefix = "]";
 
-            GlobalVars.GuildsFile.Load(GlobalVars.GuildsFileLoc);
-            var guildNode = GlobalVars.GuildsFile.SelectSingleNode($"/Guilds/Guild[@GuildID='{context.Guild.Id}']");
-            var prefixNode = guildNode.ChildNodes.Cast<XmlNode>().SingleOrDefault(n => n.Name == "Prefix");
-
-            if (prefixNode != null) guildPrefix = prefixNode.InnerText;
-
-            if (!(msg.HasStringPrefix(guildPrefix, ref argPos)) && !(msg.HasMentionPrefix(Client.CurrentUser, ref argPos))) return;
+            if (!(msg.HasStringPrefix(guildOptions.Prefix, ref argPos)) && !(msg.HasMentionPrefix(Client.CurrentUser, ref argPos))) return;
 
             if (!(await GlobalVars.CheckUserTimeout(context.Message.Author, context.Guild.Id, context.Channel))) return;
             IResult Result = null;
@@ -240,6 +273,84 @@ namespace Starborne_Management_Bot
 
             activity = activity.Replace("{serverCount}", Client.Guilds.Count.ToString());
             await Client.SetGameAsync($"{activity} {version}");
+        }
+
+        private void GetSQLData()
+        {
+            //Load prefix & options from DB
+            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
+            sBuilder.Database = GlobalVars.dbSettings.db;
+            sBuilder.UserID = GlobalVars.dbSettings.username;
+            sBuilder.Password = GlobalVars.dbSettings.password;
+            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            DB2Connection conn = new DB2Connection();
+            conn.ConnectionString = sBuilder.ConnectionString;
+
+
+            using (conn)
+            {
+                conn.Open();
+
+                #region Get Guilds
+                DB2Command cmd = new DB2Command($"SELECT * FROM SBGuilds", conn);
+                DB2DataReader dr = cmd.ExecuteReader();
+
+                while (dr.Read())
+                {
+                    GuildOption go = new GuildOption();
+
+                    go.GuildID = Convert.ToUInt64(dr.GetValue(0));
+                    go.GuildName = Convert.ToString(dr.GetValue(1));
+                    go.OwnerID = Convert.ToUInt64(dr.GetValue(2));
+                    go.Prefix = Convert.ToString(dr.GetValue(3));
+                    go.PunishThreshold = Convert.ToUInt16(dr.GetValue(4));
+                    go.MaxReserves = Convert.ToUInt16(dr.GetValue(5));
+
+                    GlobalVars.GuildOptions.Add(go);
+                }
+                #endregion
+
+                conn.Close();
+                conn.Dispose();
+            }
+        }
+
+        private void GetUsers(SocketGuild guild)
+        {
+            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
+            sBuilder.Database = GlobalVars.dbSettings.db;
+            sBuilder.UserID = GlobalVars.dbSettings.username;
+            sBuilder.Password = GlobalVars.dbSettings.password;
+            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            DB2Connection conn = new DB2Connection();
+            conn.ConnectionString = sBuilder.ConnectionString;
+
+            using (conn)
+            {
+                conn.Open();
+
+                DBControl.UpdateDB($"CREATE TABLE tmp{guild.Id} (UserID BIGINT, GuildID BIGINT, WarnCount SMALLINT);");
+
+                string sql = $"INSERT INTO tmp{guild.Id} VALUES";
+
+                foreach (SocketUser user in guild.Users)
+                {
+                    if (!user.IsBot)
+                        sql += $" ({user.Id}, {guild.Id}, 0),";
+                }
+                sql = sql.TrimEnd(',');
+                sql += ";";
+
+                DBControl.UpdateDB(sql);
+
+                sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount) SELECT UserID, GuildID, WarnCount FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount);";
+                DBControl.UpdateDB(sql);
+
+                DBControl.UpdateDB($"DROP TABLE tmp{guild.Id};");
+
+                conn.Close();
+                conn.Dispose();
+            }
         }
     }
 }
