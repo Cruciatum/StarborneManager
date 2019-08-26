@@ -72,6 +72,7 @@ namespace Starborne_Management_Bot.Classes.Commands
         [Command("nap add")]
         public async Task AddNAP(string allianceName, string allianceTag = "")
         {
+            
             DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
             sBuilder.Database = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;

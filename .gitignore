@@ -264,3 +264,4 @@ __pycache__/
 /Starborne Management Bot/Data/Guilds.xml
 /Starborne Management Bot/Data/Activity.txt
 /Starborne Management Bot/Logs
+/Starborne Management Bot/HiddenData.cs

@@ -19,6 +19,7 @@ using Starborne_Management_Bot.Classes.HelperObjects;
 
 using IBM.Data.DB2.Core;
 using Dropbox.Api;
+using Starborne_Management_Bot.Classes.Commands;
 
 namespace Starborne_Management_Bot
 {
@@ -120,16 +121,18 @@ namespace Starborne_Management_Bot
             await Task.Delay(-1);
         }
 
-        private Task Client_UserLeft(SocketGuildUser arg)
+        private async Task Client_UserLeft(SocketGuildUser arg)
         {
-            throw new NotImplementedException();
+            string sql = $"DELETE FROM SBUsers WHERE UserID = {arg.Id};";
+            DBControl.UpdateDB(sql);
+            await Client_Log(new LogMessage(LogSeverity.Info, "Client_UserLeft", $"User {arg.Id} left guild {arg.Guild.Id}"));
         }
 
         private async Task Client_UserJoined(SocketGuildUser arg)
         {
-            string sql = $"DELETE FROM SBUsers WHERE UserID = {arg.Id};";
-
+            string sql = $"INSERT INTO SBUsers(UserID, GuildID, WarnCount, AugmentsComplete) VALUES ({arg.Id}, {arg.Guild.Id}, 0, 0);";
             DBControl.UpdateDB(sql);
+            await Client_Log(new LogMessage(LogSeverity.Info, "Client_UserJoined", $"User {arg.Id} joined guild {arg.Guild.Id}"));
         }
 
         private async Task CheckGuildsStartup()
@@ -139,6 +142,7 @@ namespace Starborne_Management_Bot
                 if (GlobalVars.GuildOptions.Where(x => x.GuildID == g.Id).Count() <= 0)
                 {
                     await Client_JoinedGuild(g);
+                    GetUsers(g);
                 }
             }
         }
@@ -171,8 +175,6 @@ namespace Starborne_Management_Bot
             GlobalVars.GuildOptions.Add(go);
 
             DBControl.UpdateDB($"INSERT INTO SBGuilds VALUES ({go.GuildID.ToString()}, '{go.GuildName.Replace(@"'", "_")}',{go.OwnerID.ToString()},'{go.Prefix}', {go.PunishThreshold}, {go.MaxReserves});");
-
-            GetUsers(arg);
 
             await UpdateActivity();
             await Task.Delay(100);
@@ -217,7 +219,9 @@ namespace Starborne_Management_Bot
 
             if (!(msg.HasStringPrefix(guildOptions.Prefix, ref argPos)) && !(msg.HasMentionPrefix(Client.CurrentUser, ref argPos))) return;
 
-            if (!(await GlobalVars.CheckUserTimeout(context.Message.Author, context.Guild.Id, context.Channel))) return;
+            var r = Reservations.ResponseWaiters.SingleOrDefault(rw => rw.User == context.User && context.Message.Content.Contains($"reserve {rw.X} {rw.Y}"));
+            if (r == null && !(await GlobalVars.CheckUserTimeout(context.Message.Author, context.Guild.Id, context.Channel))) return; 
+
             IResult Result = null;
             try
             {
@@ -311,21 +315,21 @@ namespace Starborne_Management_Bot
             {
                 conn.Open();
 
-                DBControl.UpdateDB($"CREATE TABLE tmp{guild.Id} (UserID BIGINT, GuildID BIGINT, WarnCount SMALLINT);");
+                DBControl.UpdateDB($"CREATE TABLE tmp{guild.Id} (UserID BIGINT, GuildID BIGINT, WarnCount SMALLINT, AugmentsComplete INT);");
 
                 string sql = $"INSERT INTO tmp{guild.Id} VALUES";
 
                 foreach (SocketUser user in guild.Users)
                 {
                     if (!user.IsBot)
-                        sql += $" ({user.Id}, {guild.Id}, 0),";
+                        sql += $" ({user.Id}, {guild.Id}, 0, 0),";
                 }
                 sql = sql.TrimEnd(',');
                 sql += ";";
 
                 DBControl.UpdateDB(sql);
 
-                sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount) SELECT UserID, GuildID, WarnCount FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount);";
+                sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount, AugmentsComplete) SELECT UserID, GuildID, WarnCount, AugmentsComplete FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount AND U.AugmentsComplete = NU.AugmentsComplete);";
                 DBControl.UpdateDB(sql);
 
                 DBControl.UpdateDB($"DROP TABLE tmp{guild.Id};");

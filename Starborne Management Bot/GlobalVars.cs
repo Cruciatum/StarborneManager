@@ -2,12 +2,8 @@
 using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Text;
 using System.Timers;
 using System.Threading.Tasks;
-using System.Xml;
 using Starborne_Management_Bot.Classes.HelperObjects;
 using System.Linq;
 using Discord.Rest;
@@ -119,3 +115,4 @@ namespace Starborne_Management_Bot
         }
     }
 }
+
