@@ -2,13 +2,11 @@
 using Discord.Commands;
 using Discord.Rest;
 using Discord.WebSocket;
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using Starborne_Management_Bot.Classes.HelperObjects;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Timers;
 using System.Threading.Tasks;
 
@@ -19,7 +17,7 @@ namespace Starborne_Management_Bot.Classes.Commands
         public static List<ResponseWaiter> ResponseWaiters = new List<ResponseWaiter>();
 
         [Command("reserve")]
-        public async Task ReserveStation(string coord1, string coord2)
+        public async Task ReserveStation(int coord1, int coord2)
         {
             var r = ResponseWaiters.SingleOrDefault(rw => rw.User == Context.User && rw.X == coord1 && rw.Y == coord2);
             if (r != null)
@@ -28,13 +26,13 @@ namespace Starborne_Management_Bot.Classes.Commands
             }
             else
             {
-                DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-                sBuilder.Database = GlobalVars.dbSettings.db;
+                SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+                sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
                 sBuilder.UserID = GlobalVars.dbSettings.username;
                 sBuilder.Password = GlobalVars.dbSettings.password;
-                sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+                sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-                DB2Connection conn = new DB2Connection
+                SqlConnection conn = new SqlConnection
                 {
                     ConnectionString = sBuilder.ConnectionString
                 };
@@ -44,8 +42,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                     conn.Open();
 
                     #region Check if user already has reservation
-                    DB2Command cmd = new DB2Command($"SELECT Coord1, Coord2 FROM Reservations WHERE UserID = {Context.User.Id}", conn);
-                    DB2DataReader dr = cmd.ExecuteReader();
+                    SqlCommand cmd = new SqlCommand($"SELECT Coord1, Coord2 FROM Reservations WHERE UserID = {Context.User.Id}", conn);
+                    SqlDataReader dr = cmd.ExecuteReader();
 
                     if (dr.HasRows)
                     {
@@ -68,7 +66,7 @@ namespace Starborne_Management_Bot.Classes.Commands
                     #endregion
 
                     #region Check for active reservation
-                    cmd = new DB2Command($"SELECT UserID FROM Reservations WHERE GuildID = {Context.Guild.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}'", conn);
+                    cmd = new SqlCommand($"SELECT UserID FROM Reservations WHERE GuildID = {Context.Guild.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}'", conn);
                     dr = cmd.ExecuteReader();
 
                     if (dr.HasRows)
@@ -94,7 +92,7 @@ namespace Starborne_Management_Bot.Classes.Commands
                         int dist = CalcDistance(Convert.ToInt32(coord1), Convert.ToInt32(coord2), Convert.ToInt32(dr.GetValue(1)), Convert.ToInt32(dr.GetValue(2)));
                         if (dist <= 4)
                         {
-                            var m = await Context.Channel.SendMessageAsync($"A nearby reservation has already been made by {Context.Guild.Users.Single(u => u.Id == Convert.ToUInt64(dr.GetValue(0))).Mention} at [{dr.GetValue(1).ToString()}, {dr.GetValue(2).ToString()}].\nTo confirm this reservation, use the same command within 15 seconds.");
+                            var m = await Context.Channel.SendMessageAsync($"A nearby reservation has already been made by {Context.Guild.Users.Single(u => u.Id == Convert.ToUInt64(dr.GetValue(0))).Mention} at /goto {dr.GetValue(1).ToString()} {dr.GetValue(2).ToString()}.\nTo confirm this reservation, use the same command within 15 seconds.");
                             ResponseWaiters.Add(new ResponseWaiter(m, coord1, coord2, Context.User));
                             dr.Close();
 
@@ -111,7 +109,7 @@ namespace Starborne_Management_Bot.Classes.Commands
             }
             var sql = $"INSERT INTO Reservations (UserID, GuildID, Coord1, Coord2, DateStamp) VALUES ({Context.User.Id},{Context.Guild.Id}, '{coord1}', '{coord2}', '{DateTime.Now.Day}-{DateTime.Now.Month}-{DateTime.Now.Year}');";
             DBControl.UpdateDB(sql);
-            await Context.Channel.SendMessageAsync($"{Context.User.Mention}, the location [{coord1}, {coord2}] has been reserved.");
+            await Context.Channel.SendMessageAsync($"{Context.User.Mention}, the location [{coord1} {coord2}] has been reserved.");
         }
 
         [Command("reserve list")]
@@ -120,13 +118,13 @@ namespace Starborne_Management_Bot.Classes.Commands
             user = (IGuildUser)Context.Message.MentionedUsers.FirstOrDefault();
             var target = (user != null) ? (SocketUser)user : Context.User;
 
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -139,13 +137,13 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Open();
 
                 #region Get Reservation
-                DB2Command cmd = new DB2Command($"SELECT UserID, Coord1, Coord2, DateStamp FROM Reservations WHERE GuildID = {Context.Guild.Id} AND UserID = {target.Id};", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT UserID, Coord1, Coord2, DateStamp FROM Reservations WHERE GuildID = {Context.Guild.Id} AND UserID = {target.Id};", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
                     ulong userID = Convert.ToUInt64(dr.GetValue(0));
-                    eb.AddField($"Reserved by {Context.Guild.Users.Single(u => u.Id == userID)} on {dr.GetValue(3)}", $"Location: [{dr.GetValue(1)}, {dr.GetValue(2)}]");
+                    eb.AddField($"Reserved by {Context.Guild.Users.Single(u => u.Id == userID)} on {dr.GetValue(3)}", $"Location: /goto {dr.GetValue(1)} {dr.GetValue(2)}");
                 }
                 #endregion
 
@@ -176,32 +174,63 @@ namespace Starborne_Management_Bot.Classes.Commands
         [Command("reserve check")]
         public async Task CheckReserves(string coord1 = "*", string coord2 = "*")
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            if (coord1 != "*")
+            {
+                try
+                {
+                    int.TryParse(coord1, out int x);
+                }
+                catch
+                {
+                    var m = await Context.Channel.SendMessageAsync($"Invalid parameter");
+                    GlobalVars.AddRandomTracker(m);
+                    return;
+                }
+            }
+            if (coord2 != "*")
+            {
+                try
+                {
+                    int x;
+                    int.TryParse(coord2, out x);
+                }
+                catch
+                {
+                    var m = await Context.Channel.SendMessageAsync($"Invalid parameter");
+                    GlobalVars.AddRandomTracker(m);
+                    return;
+                }
+            }
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
 
             EmbedBuilder eb = new EmbedBuilder();
-            eb.Title = $"List of reservations by coords [{coord1}, {coord2}]";
+            eb.Title = $"List of reservations by coords [{coord1} {coord2}]";
 
             using (conn)
             {
                 conn.Open();
 
                 #region Get Reservation
-                DB2Command cmd = new DB2Command($"SELECT UserID, Coord1, Coord2, DateStamp FROM Reservations WHERE GuildID = {Context.Guild.Id} AND Coord1 LIKE '{coord1.Replace("*", "%")}' AND Coord2 LIKE '{coord2.Replace("*", "%")}';", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT UserID, Coord1, Coord2, DateStamp FROM Reservations WHERE GuildID = {Context.Guild.Id} AND Coord1 LIKE '{coord1.Replace("*", "%")}' AND Coord2 LIKE '{coord2.Replace("*", "%")}';", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
                     ulong userID = Convert.ToUInt64(dr.GetValue(0));
-                    eb.AddField($"Reserved by {Context.Guild.Users.Single(u => u.Id == userID)} on {dr.GetValue(3)}", $"Location: [{dr.GetValue(1)}, {dr.GetValue(2)}]");
+                    if (userID != 0)
+                    {
+                        SocketGuildUser usr = Context.Guild.Users.SingleOrDefault(u => u.Id == userID);
+                        eb.AddField($"Reserved by {usr} on {dr.GetValue(3)}", $"Location: /goto {dr.GetValue(1)} {dr.GetValue(2)}");
+                    }
                 }
                 #endregion
 
@@ -230,41 +259,56 @@ namespace Starborne_Management_Bot.Classes.Commands
         }
 
         [Command("reserve remove")]
-        public async Task RemoveReservation(string coord1, string coord2)
+        public async Task RemoveReservation(int coord1, int coord2)
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
+            bool success = false;
 
             using (conn)
             {
                 conn.Open();
 
                 #region Get Reservation
-                DB2Command cmd = new DB2Command($"SELECT * FROM Reservations WHERE GuildID = {Context.Guild.Id} AND UserID = {Context.User.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}';", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT UserID FROM Reservations WHERE GuildID = {Context.Guild.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}';", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 if (dr.HasRows)
                 {
-                    DBControl.UpdateDB($"DELETE FROM Reservations WHERE GuildID = {Context.Guild.Id} AND UserID = {Context.User.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}';");
+                    ulong uID = 0;
+                    while (dr.Read())
+                    {
+                        uID = Convert.ToUInt64(dr.GetValue(0));
+                    }
+                    if (uID == Context.User.Id)
+                    {
+                        DBControl.UpdateDB($"DELETE FROM Reservations WHERE GuildID = {Context.Guild.Id} AND UserID = {Context.User.Id} AND Coord1 = '{coord1}' AND Coord2 = '{coord2}';");
+                        success = true;
+                    }
+                    else
+                        success = false;
+
                 }
                 #endregion
 
                 conn.Close();
                 conn.Dispose();
             }
-
-            await Context.Channel.SendMessageAsync($"{Context.User.Mention}, your station reservation at [{coord1} {coord2}] has been removed.");
+            if (success)
+                await Context.Channel.SendMessageAsync($"{Context.User.Mention}, your station reservation at /goto {coord1} {coord2} has been removed.");
+            else
+                await Context.Channel.SendMessageAsync($"{Context.User.Mention}, you don't have a reservation at this location.\n*Keep in mind, you can't remove other users' reservations.*");
         }
 
-        [Command("reserve max"), RequireUserPermission(GuildPermission.Administrator)]
+        [Command("reserve max"), Priority(1), RequireUserPermission(GuildPermission.Administrator)]
         public async Task SetMaxReserves(ushort amount)
         {
             GlobalVars.GuildOptions.Single(go => go.GuildID == Context.Guild.Id).MaxReserves = amount;
@@ -289,12 +333,12 @@ namespace Starborne_Management_Bot.Classes.Commands
     public class ResponseWaiter
     {
         public RestUserMessage Message;
-        public string X;
-        public string Y;
+        public int X;
+        public int Y;
         public SocketUser User;
         public Timer t = new Timer();
 
-        public ResponseWaiter(RestUserMessage msg, string coord1, string coord2, SocketUser usr)
+        public ResponseWaiter(RestUserMessage msg, int coord1, int coord2, SocketUser usr)
         {
             Message = msg;
             X = coord1;
