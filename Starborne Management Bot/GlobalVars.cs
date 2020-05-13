@@ -74,7 +74,11 @@ namespace Starborne_Management_Bot
 
             if (!msg.IsDeleted)
             {
-                await msg.SourceMessage.DeleteAsync();
+                try
+                {
+                    await msg.SourceMessage.DeleteAsync();
+                }
+                catch { }
                 msg.IsDeleted = true;
             }
         }

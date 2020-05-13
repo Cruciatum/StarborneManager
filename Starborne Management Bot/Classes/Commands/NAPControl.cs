@@ -1,6 +1,6 @@
 ﻿using Discord;
 using Discord.Commands;
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using Starborne_Management_Bot.Classes.HelperObjects;
 using System;
 using System.Collections.Generic;
@@ -14,13 +14,13 @@ namespace Starborne_Management_Bot.Classes.Commands
         [Command("nap list")]
         public async Task ListNAP()
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -33,8 +33,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Open();
 
                 #region Get all NAPs
-                DB2Command cmd = new DB2Command($"SELECT NAPGuildName, NAPGuildTag, UserID, DateStamp FROM NAPs WHERE GuildID = {Context.Guild.Id};", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT NAPGuildName, NAPGuildTag, UserID, DateStamp FROM NAPs WHERE GuildID = {Context.Guild.Id};", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
@@ -73,13 +73,13 @@ namespace Starborne_Management_Bot.Classes.Commands
         public async Task AddNAP(string allianceName, string allianceTag = "")
         {
             
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -89,8 +89,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Open();
 
                 #region Check if user already has reservation
-                DB2Command cmd = new DB2Command($"SELECT * FROM NAPs WHERE GuildID = {Context.Guild.Id} AND ( NAPGuildName = '{allianceName}' OR NAPGuildTag = '{allianceTag}');", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT * FROM NAPs WHERE GuildID = {Context.Guild.Id} AND ( NAPGuildName = '{allianceName}' OR NAPGuildTag = '{allianceTag}');", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 if (dr.HasRows)
                 {
@@ -112,13 +112,13 @@ namespace Starborne_Management_Bot.Classes.Commands
         [Command("nap remove")]
         public async Task RemoveNAP(string allianceName)
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -128,8 +128,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                 conn.Open();
 
                 #region Check if user already has reservation
-                DB2Command cmd = new DB2Command($"SELECT NapID FROM NAPs WHERE GuildID = {Context.Guild.Id} AND NAPGuildName = '{allianceName}';", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT NapID FROM NAPs WHERE GuildID = {Context.Guild.Id} AND NAPGuildName = '{allianceName}';", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read()) {
                     if (dr.HasRows)

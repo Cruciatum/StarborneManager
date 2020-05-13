@@ -12,6 +12,8 @@ namespace Starborne_Management_Bot
 
         internal static readonly string _WORKDIR_ = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
 
+        internal static readonly ulong[] _IGNOREDGUILDS_ = new ulong[] { 264445053596991498 };
+
         internal static string TranslateForOS(string s)
         {
             if (_WORKDIR_.Contains(@"/"))

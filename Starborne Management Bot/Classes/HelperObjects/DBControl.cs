@@ -1,4 +1,4 @@
-﻿using IBM.Data.DB2.Core;
+﻿using System.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,22 +8,22 @@ namespace Starborne_Management_Bot.Classes.HelperObjects
     internal static class DBControl
     {
         internal static DBSettings dbSettings;
-        static DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-        static DB2Connection conn = new DB2Connection();
+        static SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+        static SqlConnection conn = new SqlConnection();
         
         internal static void UpdateDB(string sql)
         {
-            sBuilder.Database = dbSettings.db;
-            sBuilder.UserID = dbSettings.username;
-            sBuilder.Password = dbSettings.password;
-            sBuilder.Server = dbSettings.host + ":" + dbSettings.port;
+            sBuilder.InitialCatalog =GlobalVars.dbSettings.db;
+            sBuilder.UserID =GlobalVars.dbSettings.username;
+            sBuilder.Password =GlobalVars.dbSettings.password;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
             conn.ConnectionString = sBuilder.ConnectionString;
 
             using (conn)
             {
                 conn.Open();
 
-                DB2Command cmd = new DB2Command(sql, conn);
+                SqlCommand cmd = new SqlCommand(sql, conn);
                 cmd.ExecuteNonQuery();
 
                 conn.Close(); conn.Dispose();

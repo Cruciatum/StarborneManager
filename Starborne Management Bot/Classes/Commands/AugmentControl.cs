@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Discord;
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using Starborne_Management_Bot.Classes.HelperObjects;
 using Discord.WebSocket;
 
@@ -21,13 +21,13 @@ namespace Starborne_Management_Bot.Classes.Commands
             List<string> idList = new List<string>();
             string datestamp = DateTime.Now.Day + "-" + DateTime.Now.Month + "-" + DateTime.Now.Year;
 
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource = GlobalVars.dbSettings.host + @"\" + GlobalVars.dbSettings.instance + "," + GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -36,8 +36,8 @@ namespace Starborne_Management_Bot.Classes.Commands
             {
                 conn.Open();
 
-                DB2Command cmd = new DB2Command($"SELECT AugID, coord1, coord2 FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND Completed = 0;", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT AugID, coord1, coord2 FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND Completed = 0;", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
@@ -68,7 +68,7 @@ namespace Starborne_Management_Bot.Classes.Commands
             if (amount <= 0) amount = 10;
 
             EmbedBuilder eb = new EmbedBuilder().WithTitle($"Top {amount} oldest augment requests").WithColor(Color.Teal);
-            string sql = $"SELECT AugID, UserID, coord1, coord2, DateStamp FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND Completed = 0 ORDER BY DateStamp ASC LIMIT {amount};";
+            string sql = $"SELECT TOP 10 AugID, UserID, coord1, coord2, DateStamp FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND Completed = 0 ORDER BY DateStamp ASC;";
 
             await PerformSearch(eb, sql);
         }
@@ -79,7 +79,7 @@ namespace Starborne_Management_Bot.Classes.Commands
             if (amount <= 0) amount = 10;
 
             EmbedBuilder eb = new EmbedBuilder().WithTitle($"Top {amount} oldest augment requests").WithColor(Color.Teal);
-            string sql = $"SELECT TOP 10 AugID, UserID, coord1, coord2, DateStamp FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND UserID = {user.Id} AND Completed = 0 ORDER BY DateStamp ASC LIMIT {amount};";
+            string sql = $"SELECT TOP {amount} AugID, UserID, coord1, coord2, DateStamp FROM AugRequests WHERE GuildID = {Context.Guild.Id} AND UserID = {user.Id} AND Completed = 0 ORDER BY DateStamp ASC;";
 
             await PerformSearch(eb, sql);
         }
@@ -91,13 +91,13 @@ namespace Starborne_Management_Bot.Classes.Commands
 
             if (!InternalCall)
             {
-                DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-                sBuilder.Database = GlobalVars.dbSettings.db;
+                SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+                sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
                 sBuilder.UserID = GlobalVars.dbSettings.username;
                 sBuilder.Password = GlobalVars.dbSettings.password;
-                sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+                sBuilder.DataSource = GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-                DB2Connection conn = new DB2Connection
+                SqlConnection conn = new SqlConnection
                 {
                     ConnectionString = sBuilder.ConnectionString
                 };
@@ -106,8 +106,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                 {
                     conn.Open();
 
-                    DB2Command cmd = new DB2Command(sql, conn);
-                    DB2DataReader dr = cmd.ExecuteReader();
+                    SqlCommand cmd = new SqlCommand(sql, conn);
+                    SqlDataReader dr = cmd.ExecuteReader();
                     if (dr.HasRows)
                     {
                         await CompleteAug(ID, true);
@@ -173,13 +173,13 @@ namespace Starborne_Management_Bot.Classes.Commands
 
         private async Task PerformSearch(EmbedBuilder eb, string sql)
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -188,12 +188,12 @@ namespace Starborne_Management_Bot.Classes.Commands
             {
                 conn.Open();
 
-                DB2Command cmd = new DB2Command(sql, conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand(sql, conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
-                    eb.AddField($"{dr.GetValue(0)} by {Context.Guild.GetUser(Convert.ToUInt64(dr.GetValue(1)))}", $"Request date: {dr.GetValue(4)}\nCoordinates: [{dr.GetValue(2)},{dr.GetValue(3)}]");
+                    eb.AddField($"{dr.GetValue(0)} by {Context.Guild.GetUser(Convert.ToUInt64(dr.GetValue(1)))}", $"Request date: {dr.GetValue(4)}\nCoordinates: /goto {dr.GetValue(2)} {dr.GetValue(3)}");
                 }
                 dr.Close();
 
@@ -215,13 +215,13 @@ namespace Starborne_Management_Bot.Classes.Commands
         {
             string id = "";
 
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -230,8 +230,8 @@ namespace Starborne_Management_Bot.Classes.Commands
             {
                 conn.Open();
 
-                DB2Command cmd = new DB2Command(sql, conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand(sql, conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
@@ -251,7 +251,7 @@ namespace Starborne_Management_Bot.Classes.Commands
             if (id != "")
             {
                 DBControl.UpdateDB(sql);
-                sql = $"UPDATE SBUsers SET AugmentsComplete = (SELECT AugmentsComplete FROM SBUsers WHERE UserID = {usr.Id}) + 1 WHERE UserID = {usr.Id} AND GuildID = {g.Id};";
+                sql = $"UPDATE SBUsers SET AugmentsComplete = AugmentsComplete + 1 WHERE UserID = {usr.Id} AND GuildID = {g.Id};";
                 DBControl.UpdateDB(sql);
                 await Context.Channel.SendMessageAsync($"Augmentation request {id} has been completed by {usr.Mention}");
             }

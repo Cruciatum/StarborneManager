@@ -17,7 +17,7 @@ using System.Net.Http;
 using Starborne_Management_Bot.Classes.Data;
 using Starborne_Management_Bot.Classes.HelperObjects;
 
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using Dropbox.Api;
 using Starborne_Management_Bot.Classes.Commands;
 
@@ -123,13 +123,17 @@ namespace Starborne_Management_Bot
 
         private async Task Client_UserLeft(SocketGuildUser arg)
         {
+            if (Constants._IGNOREDGUILDS_.Contains(arg.Guild.Id)) return;
             string sql = $"DELETE FROM SBUsers WHERE UserID = {arg.Id};";
             DBControl.UpdateDB(sql);
+            sql = $"DELETE FROM Reservations WHERE UserID = {arg.Id} AND GuildID = {arg.Guild.Id};";
             await Client_Log(new LogMessage(LogSeverity.Info, "Client_UserLeft", $"User {arg.Id} left guild {arg.Guild.Id}"));
         }
 
         private async Task Client_UserJoined(SocketGuildUser arg)
         {
+            if (Constants._IGNOREDGUILDS_.Contains(arg.Guild.Id)) return;
+            if (arg.IsBot || arg.IsWebhook) return;
             string sql = $"INSERT INTO SBUsers(UserID, GuildID, WarnCount, AugmentsComplete) VALUES ({arg.Id}, {arg.Guild.Id}, 0, 0);";
             DBControl.UpdateDB(sql);
             await Client_Log(new LogMessage(LogSeverity.Info, "Client_UserJoined", $"User {arg.Id} joined guild {arg.Guild.Id}"));
@@ -142,13 +146,14 @@ namespace Starborne_Management_Bot
                 if (GlobalVars.GuildOptions.Where(x => x.GuildID == g.Id).Count() <= 0)
                 {
                     await Client_JoinedGuild(g);
-                    GetUsers(g);
                 }
+                GetUsers(g);
             }
         }
 
         private async Task Client_LeftGuild(SocketGuild arg)
         {
+            if (Constants._IGNOREDGUILDS_.Contains(arg.Id)) return;
             Console.WriteLine($"{DateTime.Now} -> Left guild: {arg.Id}");
 
             GlobalVars.GuildOptions.Remove(GlobalVars.GuildOptions.Single(x => x.GuildID == arg.Id));
@@ -162,6 +167,7 @@ namespace Starborne_Management_Bot
 
         private async Task Client_JoinedGuild(SocketGuild arg)
         {
+            if (Constants._IGNOREDGUILDS_.Contains(arg.Id)) return;
             Console.WriteLine($"{DateTime.Now} -> Joined guild: {arg.Id}");
 
             GuildOption go = new GuildOption();
@@ -182,6 +188,8 @@ namespace Starborne_Management_Bot
 
         private async Task Client_Log(LogMessage arg)
         {
+            if (arg.Message.Contains("PRESENCE_UPDATE") || arg.Message.Contains("TYPING_START") || arg.Message.Contains("VOICE_STATE_UPDATE")) return;
+            if (arg.Message.Contains("MESSAGE_CREATE") || arg.Message.Contains("MESSAGE_UPDATE") || arg.Message.Contains("MESSAGE_DELETE")) return;
             if (arg.Severity <= LogSeverity.Info)
             {
                 if (arg.Exception != null)
@@ -210,10 +218,11 @@ namespace Starborne_Management_Bot
             if (msg.Content.Length <= 1 && msg.Embeds.Count == 0 && msg.Attachments.Count == 0) return;
 
             var context = new SocketCommandContext(Client, msg);
+            if (Constants._IGNOREDGUILDS_.Contains(context.Guild.Id)) return;
             var guildOptions = GlobalVars.GuildOptions.Single(x => x.GuildID == context.Guild.Id);
 
             if (context.Message == null && context.Message.Content == "") return;
-            if (context.User.IsBot) return;
+            if (context.User.IsBot || context.User.IsWebhook) return;
 
             int argPos = 0;
 
@@ -264,12 +273,12 @@ namespace Starborne_Management_Bot
         private void GetSQLData()
         {
             //Load prefix & options from DB
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
-            DB2Connection conn = new DB2Connection();
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
+            SqlConnection conn = new SqlConnection();
             conn.ConnectionString = sBuilder.ConnectionString;
 
 
@@ -278,8 +287,8 @@ namespace Starborne_Management_Bot
                 conn.Open();
 
                 #region Get Guilds
-                DB2Command cmd = new DB2Command($"SELECT * FROM SBGuilds", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT * FROM SBGuilds", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {
@@ -303,12 +312,13 @@ namespace Starborne_Management_Bot
 
         private void GetUsers(SocketGuild guild)
         {
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            if (Constants._IGNOREDGUILDS_.Contains(guild.Id)) return;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
-            DB2Connection conn = new DB2Connection();
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
+            SqlConnection conn = new SqlConnection();
             conn.ConnectionString = sBuilder.ConnectionString;
 
             using (conn)
@@ -317,20 +327,25 @@ namespace Starborne_Management_Bot
 
                 DBControl.UpdateDB($"CREATE TABLE tmp{guild.Id} (UserID BIGINT, GuildID BIGINT, WarnCount SMALLINT, AugmentsComplete INT);");
 
-                string sql = $"INSERT INTO tmp{guild.Id} VALUES";
+                int usrCount = 0;
+                string sql = $"INSERT INTO tmp{guild.Id} (UserID, GuildID, WarnCount, AugmentsComplete) VALUES";
 
                 foreach (SocketUser user in guild.Users)
                 {
-                    if (!user.IsBot)
-                        sql += $" ({user.Id}, {guild.Id}, 0, 0),";
+                    if (!user.IsBot && !user.IsWebhook)
+                        sql += $" ({user.Id}, {guild.Id}, 0, 0),"; usrCount++;
                 }
                 sql = sql.TrimEnd(',');
                 sql += ";";
 
-                DBControl.UpdateDB(sql);
-
-                sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount, AugmentsComplete) SELECT UserID, GuildID, WarnCount, AugmentsComplete FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount AND U.AugmentsComplete = NU.AugmentsComplete);";
-                DBControl.UpdateDB(sql);
+                
+                if (usrCount > 0)
+                {
+                    DBControl.UpdateDB(sql);
+                   
+                    sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount, AugmentsComplete) SELECT UserID, GuildID, WarnCount, AugmentsComplete FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount AND U.AugmentsComplete = NU.AugmentsComplete);";
+                    DBControl.UpdateDB(sql);
+                }
 
                 DBControl.UpdateDB($"DROP TABLE tmp{guild.Id};");
 

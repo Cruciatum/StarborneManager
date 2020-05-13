@@ -1,7 +1,7 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using Starborne_Management_Bot.Classes.HelperObjects;
 using System;
 using System.Collections.Generic;
@@ -24,13 +24,13 @@ namespace Starborne_Management_Bot.Classes.Commands
                 GlobalVars.AddRandomTracker(m);
                 return;
             }
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -51,8 +51,8 @@ namespace Starborne_Management_Bot.Classes.Commands
                     return;
                 }
 
-                DB2Command cmd = new DB2Command($"SELECT WarnCount FROM SBUsers WHERE GuildID = {Context.Guild.Id} AND UserID = {user.Id};", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT WarnCount FROM SBUsers WHERE GuildID = {Context.Guild.Id} AND UserID = {user.Id};", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 while (dr.Read())
                 {

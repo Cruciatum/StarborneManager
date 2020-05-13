@@ -1,7 +1,7 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
-using IBM.Data.DB2.Core;
+using System.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,13 +21,13 @@ namespace Starborne_Management_Bot.Classes.Commands
             int AugsCompleted = 0;
 
 
-            DB2ConnectionStringBuilder sBuilder = new DB2ConnectionStringBuilder();
-            sBuilder.Database = GlobalVars.dbSettings.db;
+            SqlConnectionStringBuilder sBuilder = new SqlConnectionStringBuilder();
+            sBuilder.InitialCatalog = GlobalVars.dbSettings.db;
             sBuilder.UserID = GlobalVars.dbSettings.username;
             sBuilder.Password = GlobalVars.dbSettings.password;
-            sBuilder.Server = GlobalVars.dbSettings.host + ":" + GlobalVars.dbSettings.port;
+            sBuilder.DataSource =GlobalVars.dbSettings.host + @"\" +GlobalVars.dbSettings.instance + "," +GlobalVars.dbSettings.port;
 
-            DB2Connection conn = new DB2Connection
+            SqlConnection conn = new SqlConnection
             {
                 ConnectionString = sBuilder.ConnectionString
             };
@@ -36,8 +36,8 @@ namespace Starborne_Management_Bot.Classes.Commands
             {
                 conn.Open();
 
-                DB2Command cmd = new DB2Command($"SELECT WarnCount, AugmentsComplete FROM SBUsers WHERE UserID = {u.Id} AND GuildID = {Context.Guild.Id}", conn);
-                DB2DataReader dr = cmd.ExecuteReader();
+                SqlCommand cmd = new SqlCommand($"SELECT WarnCount, AugmentsComplete FROM SBUsers WHERE UserID = {u.Id} AND GuildID = {Context.Guild.Id}", conn);
+                SqlDataReader dr = cmd.ExecuteReader();
 
                 if (!dr.HasRows)
                 {
