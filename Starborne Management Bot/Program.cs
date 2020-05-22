@@ -127,6 +127,7 @@ namespace Starborne_Management_Bot
             string sql = $"DELETE FROM SBUsers WHERE UserID = {arg.Id};";
             DBControl.UpdateDB(sql);
             sql = $"DELETE FROM Reservations WHERE UserID = {arg.Id} AND GuildID = {arg.Guild.Id};";
+            DBControl.UpdateDB(sql);
             await Client_Log(new LogMessage(LogSeverity.Info, "Client_UserLeft", $"User {arg.Id} left guild {arg.Guild.Id}"));
         }
 
