@@ -22,6 +22,7 @@ namespace Starborne_Management_Bot.Classes.Commands
                 eb.AddField("Reserve", $"For more commands: {prefix}help reserve");
                 eb.AddField("NAP", $"For more commands: {prefix}help nap");
                 eb.AddField("Aug", $"For more commands: {prefix}help aug");
+                eb.AddField("Ship", $"For more commands: {prefix}help ship");
                 eb.AddField("Misc", $"For more commands: {prefix}help misc");
             }
             else
@@ -53,16 +54,26 @@ namespace Starborne_Management_Bot.Classes.Commands
                         eb.AddField($"{prefix}aug complete [@User] [coord1] [coord2]", "Mark an augmentation request on location [coord1,coord2] by [@User] as completed.");
                         #endregion
                         break;
+                    case "ship":
+                        #region Ship commands
+                        eb.AddField($"{prefix}ship request [ship name] [amount] [coord1] [coord2]", "Put in a request for ships on your outposts.");
+                        eb.AddField($"{prefix}ship search <amount>", "Get the [amount] oldest ship requests.");
+                        eb.AddField($"{prefix}ship search [@User] <amount>", "Get the [amount] oldest ship requests by [@User]");
+                        eb.AddField($"{prefix}ship complete [ID]", $"Mark a ship request as being completed. (ID can be found using {prefix}ship search)");
+                        eb.AddField($"{prefix}ship complete [@User] [coord1] [coord2]", "Mark a ship request on location [coord1,coord2] by [@User] as completed.");
+                        #endregion
+                        break;
                     case "misc":
                         #region Misc commands
                         eb.AddField($"{prefix}userinfo [@User]", "Get information for a user in this alliance.");
                         eb.AddField($"{prefix}reserve max [amount]", $"Set a maximum on howmany locations each user can reserve.\n*(Administrator permissions required)*");
                         eb.AddField($"{prefix}warn max [amount]", $"Set the maximum amount of warnings a user can receive before facing consequences.\n*(Administrator permission required)*");
                         eb.AddField($"{prefix}warn [@User]", $"Add a warning to [@User]'s record, also displays current amount of warnings.\n*(Administrator permission required)*");
+                        eb.AddField($"{prefix}prefix [New Prefix]", $"Change the prefix to which the bot responds here!\n*(Administrator permission required)*");
                         #endregion
                         break;
                     default:
-                        var m = await Context.Channel.SendMessageAsync($"Unknown option for Help: \"{arg}\"");
+                        var m = await Context.Channel.SendMessageAsync($"Unknown Help topic: \"{arg}\"");
                         GlobalVars.AddRandomTracker(m);
                         return;
                 }
