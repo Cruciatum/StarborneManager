@@ -81,6 +81,7 @@ namespace Starborne_Management_Bot
 
             Client = new DiscordSocketClient(new DiscordSocketConfig
             {
+                AlwaysDownloadUsers = true,
                 LogLevel = LogSeverity.Debug
             });
 
@@ -181,7 +182,7 @@ namespace Starborne_Management_Bot
             go.MaxReserves = 1;
             GlobalVars.GuildOptions.Add(go);
 
-            DBControl.UpdateDB($"INSERT INTO SBGuilds VALUES ({go.GuildID.ToString()}, '{go.GuildName.Replace(@"'", "_")}',{go.OwnerID.ToString()},'{go.Prefix}', {go.PunishThreshold}, {go.MaxReserves});");
+            DBControl.UpdateDB($"INSERT INTO SBGuilds VALUES ({go.GuildID.ToString()}, '{go.GuildName.Replace(@"'", "_")}',{go.OwnerID.ToString()},'{go.Prefix}', {go.PunishThreshold}, {go.MaxReserves})");
 
             await UpdateActivity();
             await Task.Delay(100);
@@ -333,17 +334,19 @@ namespace Starborne_Management_Bot
 
                 foreach (SocketUser user in guild.Users)
                 {
-                    if (!user.IsBot && !user.IsWebhook)
+                    if (!user.IsBot && !user.IsWebhook && user.Id != 609096969389867009)
+                    {
                         sql += $" ({user.Id}, {guild.Id}, 0, 0),"; usrCount++;
+                    }
                 }
                 sql = sql.TrimEnd(',');
                 sql += ";";
 
-                
+
                 if (usrCount > 0)
                 {
                     DBControl.UpdateDB(sql);
-                   
+
                     sql = $"INSERT INTO SBUsers (UserID, GuildID, WarnCount, AugmentsComplete) SELECT UserID, GuildID, WarnCount, AugmentsComplete FROM tmp{guild.Id} AS NU WHERE NOT EXISTS ( SELECT 1 FROM SBUsers AS U WHERE U.UserID = NU.UserID AND U.GuildID = NU.GuildID AND U.WarnCount = NU.WarnCount AND U.AugmentsComplete = NU.AugmentsComplete);";
                     DBControl.UpdateDB(sql);
                 }
